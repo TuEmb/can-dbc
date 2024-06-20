@@ -41,8 +41,9 @@ extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 
-use std::convert::TryFrom;
+use std::{collections::HashMap, convert::TryFrom};
 
+use byteorder::{BigEndian, LittleEndian};
 use derive_getters::Getters;
 
 pub mod parser;
@@ -532,6 +533,48 @@ pub struct Message {
     message_size: u64,
     transmitter: Transmitter,
     signals: Vec<Signal>,
+}
+
+impl Message {
+    pub fn parse_from_can(&self, data: &[u8]) -> HashMap<String, f32> {
+        let mut hash_map: HashMap<String, f32> = HashMap::new();
+        for signal in self.signals.clone() {
+            let value = Self::parse_message(
+                signal.signal_size as usize,
+                signal.start_bit as usize,
+                signal.byte_order,
+                signal.factor as f32,
+                signal.offset as f32,
+                data,
+            )
+            .unwrap_or(0.0);
+            hash_map.insert(signal.name, value);
+        }
+
+        hash_map
+    }
+
+    fn parse_message(
+        bit_len: usize,
+        start_bit: usize,
+        little_endian: ByteOrder,
+        scale: f32,
+        offset: f32,
+        msg: &[u8],
+    ) -> Option<f32> {
+        if msg.len() < 8 {
+            return None;
+        }
+        let msg64: u64 = if little_endian == ByteOrder::LittleEndian {
+            <LittleEndian as byteorder::ByteOrder>::read_u64(msg)
+        } else {
+            <BigEndian as byteorder::ByteOrder>::read_u64(msg)
+        };
+
+        let bit_mask: u64 = 2u64.pow(bit_len as u32) - 1;
+
+        Some((((msg64 >> start_bit) & bit_mask) as f32) * scale + offset)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Getters)]
