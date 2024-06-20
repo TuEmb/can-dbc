@@ -562,9 +562,6 @@ impl Message {
         offset: f32,
         msg: &[u8],
     ) -> Option<f32> {
-        if msg.len() < 8 {
-            return None;
-        }
         let msg64: u64 = if little_endian == ByteOrder::LittleEndian {
             <LittleEndian as byteorder::ByteOrder>::read_u64(msg)
         } else {
